@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg
+*.egg-info/
+dist/
+build/
+*.log
+
+# Virtual environment
+venv/
+.env
+.env.*  # if you have env files
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# Alembic / migrations (optional)
+# You usually keep migrations, so include this line if you want them versioned:
+# alembic/versions/
+
+# OS files
+.DS_Store
+Thumbs.db
