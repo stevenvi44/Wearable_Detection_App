@@ -4,6 +4,7 @@ from typing import List
 from database import get_db  # Database session dependency
 from schemas.schemas import UserCreate, UserUpdate, UserResponse
 from crud.crud import create_user, get_user, get_users, update_user, delete_user
+from utils import get_api_key
 
 router = APIRouter(
     prefix="/users",
@@ -12,7 +13,7 @@ router = APIRouter(
 
 # CREATE USER 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def api_create_user(user_data: UserCreate, db: Session = Depends(get_db)) -> UserResponse:
+def api_create_user(user_data: UserCreate, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)) -> UserResponse:
     """
     Create a new user with hashed password and optional roles.
     """
@@ -24,7 +25,7 @@ def api_create_user(user_data: UserCreate, db: Session = Depends(get_db)) -> Use
 
 # GET ALL USERS
 @router.get("/", response_model=List[UserResponse])
-def api_get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)) -> List[UserResponse]:
+def api_get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)) -> List[UserResponse]:
     """
     Get a list of users with optional pagination.
     """
@@ -32,7 +33,7 @@ def api_get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
 
 # GET USER BY ID 
 @router.get("/{user_id}", response_model=UserResponse)
-def api_get_user(user_id: int, db: Session = Depends(get_db)) -> UserResponse:
+def api_get_user(user_id: int, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)) -> UserResponse:
     """
     Get a single user by their ID.
     """
@@ -43,7 +44,7 @@ def api_get_user(user_id: int, db: Session = Depends(get_db)) -> UserResponse:
 
 # UPDATE USER 
 @router.put("/{user_id}", response_model=UserResponse)
-def api_update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(get_db)) -> UserResponse:
+def api_update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)) -> UserResponse:
     """
     Update a user’s information, password, or roles.
     """
@@ -55,7 +56,7 @@ def api_update_user(user_id: int, user_data: UserUpdate, db: Session = Depends(g
 
 # DELETE USER
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def api_delete_user(user_id: int, db: Session = Depends(get_db)) -> None:
+def api_delete_user(user_id: int, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)) -> None:
     """
     Delete a user by their ID.
     """

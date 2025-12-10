@@ -1,5 +1,5 @@
 # app/models/models.py OR split into user.py and role.py
-from sqlalchemy import CheckConstraint, PrimaryKeyConstraint, Column, Integer, String, Table, ForeignKey, Text, Boolean
+from sqlalchemy import CheckConstraint, PrimaryKeyConstraint, TIMESTAMP, Float, Column, Integer, String, Table, ForeignKey, Text, Boolean, Double, BigInteger, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -33,6 +33,8 @@ class User(Base):
         secondaryjoin="User.user_id==PatientCaregiver.caregiver_id",
         backref="patients"
     )
+    vital_signs = relationship("VitalSigns", back_populates="user")
+
 
 # Roles table
 class Role(Base):
@@ -61,3 +63,51 @@ class PatientCaregiver(Base):
     __table_args__ = (
         PrimaryKeyConstraint("patient_id", "caregiver_id"),
     )
+
+# Patient Location
+class PatientLocation(Base):
+    __tablename__ = "patient_locations"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    latitude = Column(Double, nullable=False)
+    longitude = Column(Double, nullable=False)
+    recorded_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class PatientLastLocation(Base):
+    __tablename__ = "patient_last_location"
+
+    patient_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), primary_key=True)
+    latitude = Column(Double, nullable=False)
+    longitude = Column(Double, nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class VitalSigns(Base):
+    __tablename__ = "vital_signs"
+
+    vital_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+
+    heart_rate = Column(Integer, nullable=True)
+    blood_pressure_systolic = Column(Integer, nullable=True)
+    blood_pressure_diastolic = Column(Integer, nullable=True)
+    spo2 = Column(Integer, nullable=True)
+    temperature = Column(Float, nullable=True)
+    breathing_rate = Column(Integer, nullable=True)
+
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    # Relationship back to User
+    user = relationship("User", back_populates="vital_signs")
+
+class DeviceConnection(Base):
+    __tablename__ = "device_connections"
+
+    device_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"))
+    status = Column(String, nullable=False)
+    battery = Column(Integer)
+    ip_address = Column(String)
+    last_seen = Column(TIMESTAMP, server_default=func.now())
+    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
+

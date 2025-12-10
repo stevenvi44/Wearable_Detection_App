@@ -2,9 +2,12 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from fastapi import HTTPException
-from models.models import User, Role, PatientCaregiver
-from schemas.schemas import UserCreate, UserUpdate, UserResponse
+from models.models import User, Role, PatientCaregiver, VitalSigns, DeviceConnection
+from schemas.schemas import UserCreate, UserUpdate, UserResponse, VitalSignsCreate, VitalSignsResponse, DeviceStatusUpdate
 from utils import hash_password
+from datetime import datetime
+
+
 
 # ------------------ CREATE USER ------------------ #
 def create_user(db: Session, user_data: UserCreate) -> UserResponse:
@@ -101,4 +104,83 @@ def link_patient_and_caregiver(db: Session, patient_id: int, caregiver_id: int):
     db.refresh(link)
     return link
 
+# ------------------ Vital ------------------ #
+def create_vital_sign(db: Session, vital_data: VitalSignsCreate):
+    # Check if user exists
+    user = db.query(User).filter(User.user_id == vital_data.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
+    # Check patient role
+    is_patient = any(role.role_name == "patient" for role in user.roles)
+    if not is_patient:
+        raise HTTPException(status_code=403, detail="Only patients can submit vitals.")
+
+    # Insert vital signs
+    vital = VitalSigns(**vital_data.model_dump())
+    db.add(vital)
+    db.commit()
+    db.refresh(vital)
+
+    return vital
+
+def get_latest_vital(db: Session, user_id: int):
+    vital = (
+        db.query(VitalSigns)
+        .filter(VitalSigns.user_id == user_id)
+        .order_by(VitalSigns.created_at.desc())
+        .first()
+    )
+
+    if not vital:
+        return None
+
+    return VitalSignsResponse.model_validate(vital)
+
+def get_vital_history(db: Session, user_id: int, limit: int = 50):
+    vitals = (
+        db.query(VitalSigns)
+        .filter(VitalSigns.user_id == user_id)
+        .order_by(VitalSigns.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [VitalSignsResponse.model_validate(v) for v in vitals]
+
+def update_device_status(db, data, ip_address: str):
+
+    # Check user exists
+    user = db.query(User).filter(User.user_id == data.user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User with id {data.user_id} does not exist"
+        )
+
+    # Get existing device
+    device = db.query(DeviceConnection).filter(
+        DeviceConnection.user_id == data.user_id
+    ).first()
+
+    # Update existing
+    if device:
+        device.status = data.status
+        device.battery = data.battery
+        device.last_seen = datetime.utcnow()
+        device.ip_address = ip_address
+
+    # Create new
+    else:
+        device = DeviceConnection(
+            user_id=data.user_id,
+            status=data.status,
+            battery=data.battery,
+            ip_address=ip_address,
+            last_seen=datetime.utcnow()
+        )
+        db.add(device)
+
+    db.commit()
+    db.refresh(device)
+    return device

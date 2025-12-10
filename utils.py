@@ -1,7 +1,8 @@
 from passlib.context import CryptContext
-from fastapi import BackgroundTasks, HTTPException, Security
+from fastapi import BackgroundTasks, HTTPException, WebSocket, Security
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from fastapi.security.api_key import APIKeyHeader
+from typing import List
 import os
 from dotenv import load_dotenv
 from starlette.status import HTTP_403_FORBIDDEN
@@ -68,3 +69,51 @@ def get_api_key(api_key_header_value: str = Security(api_key_header)):
         )
     return api_key_header_value
 
+# WebSocket Manager - for location
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            await connection.send_json(message)
+
+# WebSocket Manager - for vital
+class ConnectionManagerVital:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        if not self.active_connections:
+            import logging
+            logging.getLogger(__name__).info("No active connections to broadcast to")
+            return  # No connections to broadcast to
+        
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Error broadcasting to connection: {e}")
+                # Mark for removal if send fails
+                disconnected.append(connection)
+        
+        # Remove disconnected connections
+        for connection in disconnected:
+            self.disconnect(connection)

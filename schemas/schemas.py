@@ -218,3 +218,71 @@ class ForgotPasswordRequest(BaseModel):
 class LoginSchema(BaseModel):
     username: str
     password: str
+
+
+class PatientLocationUpdate(BaseModel):
+    patient_id: int
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+
+class PatientLocationResponse(BaseModel):
+    patient_id: int
+    latitude: float
+    longitude: float
+    updated_at: str
+
+# Vital Schema
+class VitalSignsBase(BaseModel):
+    heart_rate: Optional[int] = None
+    blood_pressure_systolic: Optional[int] = None
+    blood_pressure_diastolic: Optional[int] = None
+    spo2: Optional[int] = None
+    temperature: Optional[float] = None
+    breathing_rate: Optional[int] = None
+
+class VitalSignsCreate(VitalSignsBase):
+    user_id: int
+
+class VitalSignsResponse(BaseModel):
+    vital_id: int
+    user_id: int
+    heart_rate: int | None = None
+    blood_pressure_systolic: int | None = None
+    blood_pressure_diastolic: int | None = None
+    spo2: int | None = None
+    temperature: float | None = None
+    breathing_rate: int | None = None
+    created_at: datetime
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class DeviceStatusUpdate(BaseModel):
+    user_id: int
+    status: str
+    battery: int
+
+    # Validate battery (%)
+    @field_validator("battery")
+    def validate_battery(cls, v):
+        if v < 0 or v > 100:
+            raise ValueError("battery must be between 0 and 100")
+        return v
+
+    # Validate status value
+    @field_validator("status")
+    def validate_status(cls, v):
+        allowed = {"online", "offline", "disconnected"}
+        if v.lower() not in allowed:
+            raise ValueError(f"status must be one of: {allowed}")
+        return v.lower()
+
+class CaregiverContactResponse(BaseModel):
+    caregiver_id: int
+    caregiver_name: str
+    phone_number: str
+
+    model_config = {
+        "from_attributes": True
+    }

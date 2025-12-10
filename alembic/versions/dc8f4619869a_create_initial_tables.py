@@ -1,8 +1,8 @@
-"""Add username regex constraint
+"""create initial tables
 
-Revision ID: 2c2901e662a2
-Revises: 81b91e67f8a4
-Create Date: 2025-12-05 15:08:41.773233
+Revision ID: dc8f4619869a
+Revises: 
+Create Date: 2025-12-08 23:26:59.561886
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '2c2901e662a2'
-down_revision: Union[str, Sequence[str], None] = '81b91e67f8a4'
+revision: str = 'dc8f4619869a'
+down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

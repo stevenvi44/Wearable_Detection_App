@@ -13,6 +13,7 @@ from schemas.schemas import UserCreate, UserUpdate, UserResponse
 from database import get_db
 from models.models import User, Role, UserRole
 from crud.crud import link_patient_and_caregiver
+from utils import get_api_key
 from schemas.schemas import (
     UserCreate,
     VerifyCode,
@@ -122,7 +123,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 async def register_user(
     user_data: UserCreate,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
 ):
     # Check email unique
     if db.query(User).filter(User.email == user_data.email).first():
@@ -173,7 +175,7 @@ async def register_user(
 
 # VERIFY EMAIL
 @router.post("/verify-email")
-def verify_email(data: VerifyCode, db: Session = Depends(get_db)):
+def verify_email(data: VerifyCode, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):
     user = db.query(User).filter(
         User.email == data.email,
         User.verification_code == data.code
@@ -193,7 +195,8 @@ def verify_email(data: VerifyCode, db: Session = Depends(get_db)):
 @router.post("/login")
 def login_user(
     credentials: LoginSchema,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
 ):
     user = db.query(User).filter(
         (User.email == credentials.username) | (User.user_name == credentials.username)
@@ -223,7 +226,7 @@ def login_user(
 
 # REFRESH TOKEN
 @router.post("/refresh")
-def refresh_token(token: str):
+def refresh_token(token: str, api_key: str = Depends(get_api_key)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email = payload.get("sub")
@@ -244,7 +247,8 @@ def refresh_token(token: str):
 async def forgot_password(
     req: ForgotPasswordRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
 ):
     user = db.query(User).filter(User.email == req.email).first()
     if not user:
@@ -264,7 +268,7 @@ async def forgot_password(
 
 # RESET PASSWORD
 @router.post("/reset-password")
-def reset_password(payload: ResetPasswordSchema, db: Session = Depends(get_db)):
+def reset_password(payload: ResetPasswordSchema, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):
     user = db.query(User).filter(
         User.email == payload.email,
         User.verification_code == payload.code
@@ -293,7 +297,8 @@ def get_admin_user(user: User = Depends(get_current_user)):
 @router.post("/connect")
 def connect_patient_and_caregiver(
     data: PatientCaregiverCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
 ):
     link_patient_and_caregiver(db, data.patient_id, data.caregiver_id)
     return {"message": "Caregiver linked to patient successfully"}
