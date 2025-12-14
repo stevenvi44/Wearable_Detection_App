@@ -286,3 +286,73 @@ class CaregiverContactResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+class DashboardSummaryResponse(BaseModel):
+    date: str
+    daily_steps: int
+    active_minutes: int
+    rest_hours: float
+    mobility_level: str
+
+class DashboardSummaryCreate(BaseModel):
+    user_id: int
+    date: date
+    daily_steps: int
+    active_minutes: int
+    rest_hours: float
+    mobility_level: str
+
+class WeeklyStepsItem(BaseModel):
+    day: str
+    steps: int
+
+class WeeklyStepsResponse(BaseModel):
+    week: str
+    steps: List[WeeklyStepsItem]
+
+class WeeklyStepsCreate(BaseModel):
+    user_id: int
+    week: str  # day name: mon, tue, wed, thu, fri, sat, sun
+    steps: int
+
+class WeeklyReportResponse(BaseModel):
+    week: str
+    average_steps: int
+    total_distance_km: float
+    most_active_day: str
+    calories_burned: int
+
+class SleepResponse(BaseModel):
+    user_id: int
+    sleep_date: str
+    sleep_hours: float | None
+    deep_sleep_hours: float | None
+    light_sleep_hours: float | None
+    rem_sleep_hours: float | None
+    awake_minutes: int | None
+
+class ActivityDailyCreate(BaseModel):
+    user_id: int
+    activity_date: date
+    average_steps: int
+    most_active_day: str
+    total_distance_km: float
+    calories_burned: int
+
+class WeeklyReportCreate(BaseModel):
+    user_id: int
+    activity_date: date
+    average_steps: int
+    most_active_day: str
+    total_distance_km: float
+    calories_burned: int
+
+
+class SleepCreate(BaseModel):
+    user_id: int
+    sleep_date: date
+    sleep_hours: float
+    deep_sleep_hours: float
+    light_sleep_hours: float
+    rem_sleep_hours: float
+    awake_minutes: int
