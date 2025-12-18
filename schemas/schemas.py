@@ -1,9 +1,13 @@
-from pydantic import BaseModel, EmailStr, StringConstraints, HttpUrl, Field, model_validator, field_validator # BaseModel for defining schemas
-from typing import Optional, Annotated, List # Optional allows fields to be nullable.
-from datetime import datetime, date, timezone
-from decimal import Decimal
-from enum import Enum
+from typing import Optional, Annotated, List 
+from datetime import datetime, date
 import re
+from pydantic import (
+    BaseModel,
+    EmailStr,
+    Field,
+    StringConstraints,
+    field_validator,
+)
 
 
 class UserBase(BaseModel):
@@ -26,6 +30,8 @@ class UserBase(BaseModel):
         )
     ]
     location: str
+    age: Optional[int] = None
+    pain_type: Optional[str] = None
 
 class UserCreate(BaseModel):
     name: str = Field(example="Alice Smith")
@@ -33,6 +39,8 @@ class UserCreate(BaseModel):
     email: EmailStr = Field(example="alice@example.com")
     phone_number: str = Field(example="01234567890")
     location: str = Field(example="Cairo, Egypt")
+    age: Optional[int] = Field(default=None, example=68)
+    pain_type: Optional[str] = Field(default=None, example="Chronic back pain")
     password: Annotated[
         str,
         StringConstraints(min_length=8, max_length=72)
@@ -85,6 +93,8 @@ class UserUpdate(BaseModel):
         ]
     ] = Field(default=None, example="01234567890")
     location: Optional[str] = Field(default=None, example="Cairo, Egypt")
+    age: Optional[int] = Field(default=None, example=68)
+    pain_type: Optional[str] = Field(default=None, example="Chronic back pain")
     role_ids: Optional[List[int]] = Field(default=None, example=[2])
     password: Optional[Annotated[str, StringConstraints(min_length=8, max_length=72)]] = Field(default=None, example="NewStrongPass1!")
     reset_token: Optional[str] = Field(default=None, example="abc123resettoken")
@@ -278,6 +288,15 @@ class DeviceStatusUpdate(BaseModel):
             raise ValueError(f"status must be one of: {allowed}")
         return v.lower()
 
+
+class DeviceStatusResponse(BaseModel):
+    status: str
+    battery: int
+
+    model_config = {
+        "from_attributes": True
+    }
+
 class CaregiverContactResponse(BaseModel):
     caregiver_id: int
     caregiver_name: str
@@ -350,9 +369,64 @@ class WeeklyReportCreate(BaseModel):
 
 class SleepCreate(BaseModel):
     user_id: int
-    sleep_date: date
+    sleep_day: str  # Accepts day name: Mon, Tue, Wed, Thu, Fri, Sat, Sun
     sleep_hours: float
     deep_sleep_hours: float
     light_sleep_hours: float
     rem_sleep_hours: float
     awake_minutes: int
+
+    @field_validator("sleep_day")
+    def validate_sleep_day(cls, v: str) -> str:
+        valid_days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        if v not in valid_days:
+            raise ValueError(
+                f"sleep_day must be one of: {', '.join(valid_days)}. Got: '{v}'"
+            )
+        return v
+
+class TodayMedicationItem(BaseModel):
+    dose_id: int
+    medication_id: int
+    name: str
+    dosage: str
+    frequency: str
+    scheduled_time: str
+    status: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class TodayMedicationResponse(BaseModel):
+    date: str
+    items: List[TodayMedicationItem]
+
+class TakeMedicationResponse(BaseModel):
+    message: str
+    taken_at: str
+
+class SkipMedicationRequest(BaseModel):
+    reason: str
+
+class SkipMedicationResponse(BaseModel):
+    message: str
+
+class TodayMedicationRequest(BaseModel):
+    user_id: int
+    items: List[TodayMedicationItem]
+
+class MedicationCreate(BaseModel):
+    user_id: int
+    name: str
+    dosage: str
+    frequency: str
+
+class MedicationResponse(BaseModel):
+    medication_id: int
+    user_id: int
+    name: str
+    dosage: str
+    frequency: str
+
+    class Config:
+        from_attributes = True

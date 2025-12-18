@@ -3,10 +3,9 @@ from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from fastapi import HTTPException
 from models.models import User, Role, PatientCaregiver, VitalSigns, DeviceConnection
-from schemas.schemas import UserCreate, UserUpdate, UserResponse, VitalSignsCreate, VitalSignsResponse, DeviceStatusUpdate
+from schemas.schemas import UserCreate, UserUpdate, UserResponse, VitalSignsCreate, VitalSignsResponse
 from utils import hash_password
 from datetime import datetime
-
 
 
 # ------------------ CREATE USER ------------------ #
@@ -25,6 +24,8 @@ def create_user(db: Session, user_data: UserCreate) -> UserResponse:
         email=user_data.email,
         phone_number=user_data.phone_number,
         location=user_data.location,
+        age=user_data.age,
+        pain_type=user_data.pain_type,
         password=hashed_password,
         roles=roles
     )

@@ -1,9 +1,14 @@
 from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.orm import Session
 from database import get_db
-from models.models import User, PatientCaregiver
-from schemas.schemas import DeviceStatusUpdate, CaregiverContactResponse
+from models.models import User, PatientCaregiver, DeviceConnection
+from schemas.schemas import (
+    DeviceStatusUpdate,
+    DeviceStatusResponse,
+    CaregiverContactResponse,
+)
 import crud.crud as crud
+
 
 router = APIRouter(prefix="/device", tags=["Device Connection"])
 
@@ -11,10 +16,30 @@ router = APIRouter(prefix="/device", tags=["Device Connection"])
 def update_device_status_endpoint(
     data: DeviceStatusUpdate,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     ip = request.client.host
     return crud.update_device_status(db, data, ip)
+
+@router.get("/device/status/{patient_id}", response_model=DeviceStatusResponse)
+def get_device_status(patient_id: int, db: Session = Depends(get_db)):
+    """
+    Get latest device connection status and battery for a patient.
+    `patient_id` here refers to the user's `user_id`.
+    """
+    device = (
+        db.query(DeviceConnection)
+        .filter(DeviceConnection.user_id == patient_id)
+        .first()
+    )
+
+    if not device:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No device connection found for patient_id {patient_id}",
+        )
+
+    return DeviceStatusResponse(status=device.status, battery=device.battery or 0)
 
 @router.get("/caregiver/contact/{patient_id}", response_model=CaregiverContactResponse)
 def get_caregiver_contact(patient_id: int, db: Session = Depends(get_db)):

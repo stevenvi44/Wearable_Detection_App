@@ -2,14 +2,13 @@ import os
 import random
 import logging
 from datetime import datetime, timedelta, timezone
-
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
-from schemas.schemas import UserCreate, UserUpdate, UserResponse
+from schemas.schemas import UserCreate
 from database import get_db
 from models.models import User, Role, UserRole
 from crud.crud import link_patient_and_caregiver
@@ -18,7 +17,6 @@ from schemas.schemas import (
     UserCreate,
     VerifyCode,
     ForgotPasswordRequest,
-    UserResponse,
     LoginSchema,
     ResetPasswordSchema,
     PatientCaregiverCreate
@@ -148,6 +146,8 @@ async def register_user(
         email=user_data.email,
         phone_number=user_data.phone_number,
         location=user_data.location,
+        age=user_data.age,
+        pain_type=user_data.pain_type,
         password=hash_password(user_data.password),
         is_active=False,
         verification_code=verification_code

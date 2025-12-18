@@ -10,9 +10,7 @@ router = APIRouter(prefix="/patient/location", tags=["Patient Location"])
 manager = ConnectionManager()
 
 
-# ----------------------------------------------------
 # 1) Patient sends live location (update + history)
-# ----------------------------------------------------
 @router.post("/update")
 async def update_location(loc: PatientLocationUpdate, api_key: str = Depends(get_api_key)):
     with engine.begin() as conn:
@@ -51,9 +49,7 @@ async def update_location(loc: PatientLocationUpdate, api_key: str = Depends(get
     return {"status": "success", "message": "Location updated"}
 
 
-# ----------------------------------------------------
 # 2) Caregiver fetches the latest patient location
-# ----------------------------------------------------
 @router.get("/latest/{patient_id}", response_model=PatientLocationResponse)
 def get_latest_location(patient_id: int, api_key: str = Depends(get_api_key)):
 
@@ -74,7 +70,6 @@ def get_latest_location(patient_id: int, api_key: str = Depends(get_api_key)):
         updated_at=str(result.updated_at)
     )
 
-
 # WebSocket Endpoint
 @router.websocket("/ws/location")
 async def websocket_endpoint(websocket: WebSocket):
@@ -84,7 +79,7 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1008, reason="API Key missing")  # 1008 = policy violation
         return
     if api_key != API_KEY:
-        await websocket.close(code=1008, reason="Invalid API Key")  # 1008 = policy violation
+        await websocket.close(code=1008, reason="Invalid API Key")  
         return
 
     # Accept connection and store it

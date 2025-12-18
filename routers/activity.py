@@ -1,12 +1,44 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from datetime import date, timedelta
 import calendar
 
 from database import get_db
-from models.models import ActivityDaily, ActivityWeekly, WeeklyReport, Dashboard, WeeklySteps, SleepLog, User
+from models.models import WeeklyReport, Dashboard, WeeklySteps, SleepLog, User
 from schemas.schemas import *
 from utils import get_api_key
+
+
+def day_name_to_date(day_name: str) -> date:
+    """Convert day name (Mon, Tue, etc.) to the most recent occurrence of that day"""
+    day_mapping = {
+        "Mon": 0,
+        "Tue": 1,
+        "Wed": 2,
+        "Thu": 3,
+        "Fri": 4,
+        "Sat": 5,
+        "Sun": 6,
+    }
+
+    target_weekday = day_mapping.get(day_name)
+    if target_weekday is None:
+        raise ValueError(
+            f"Invalid day name: {day_name}. Must be one of: Mon, Tue, Wed, Thu, Fri, Sat, Sun"
+        )
+
+    today = date.today()
+    current_weekday = today.weekday()  # Monday is 0, Sunday is 6
+
+    # Calculate days to subtract to get to the target day
+    days_diff = (current_weekday - target_weekday) % 7
+    if days_diff == 0:
+        # If today is the target day, return today
+        return today
+    else:
+        # Return the most recent occurrence of the target day
+        return today - timedelta(days=days_diff)
+
 
 router = APIRouter(prefix="/api/activity", tags=["Activity"])
 
@@ -72,10 +104,15 @@ def upsert_sleep(
             detail=f"User with id {payload.user_id} not found"
         )
     
-    record = db.query(SleepLog).filter(
-        SleepLog.user_id == payload.user_id,
-        SleepLog.sleep_date == payload.sleep_date
-    ).first()
+    # Use sleep_day text directly for storage/query (e.g., 'Mon', 'Fri')
+    record = (
+        db.query(SleepLog)
+        .filter(
+            SleepLog.user_id == payload.user_id,
+            SleepLog.sleep_day == payload.sleep_day,
+        )
+        .first()
+    )
 
     if record:
         record.sleep_hours = payload.sleep_hours
@@ -86,12 +123,12 @@ def upsert_sleep(
     else:
         record = SleepLog(
             user_id=payload.user_id,
-            sleep_date=payload.sleep_date,
+            sleep_day=payload.sleep_day,
             sleep_hours=payload.sleep_hours,
             deep_sleep_hours=payload.deep_sleep_hours,
             light_sleep_hours=payload.light_sleep_hours,
             rem_sleep_hours=payload.rem_sleep_hours,
-            awake_minutes=payload.awake_minutes
+            awake_minutes=payload.awake_minutes,
         )
         db.add(record)
 
@@ -256,38 +293,53 @@ def weekly_report(
 @router.get("/sleep", response_model=SleepResponse)
 def get_sleep(
     user_id: int,
-    date: date,
+    sleep_day: str = Query(
+        ..., description="Day name: Mon, Tue, Wed, Thu, Fri, Sat, Sun"
+    ),
     db: Session = Depends(get_db),
-    api_key: str = Depends(get_api_key)
+    api_key: str = Depends(get_api_key),
 ):
-    """Get sleep data for a specific date"""
+    """Get sleep data for a specific weekday (Mon, Tue, ..., Sun)"""
+    # Validate day name
+    valid_days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    if sleep_day not in valid_days:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"sleep_day must be one of: {', '.join(valid_days)}. Got: '{sleep_day}'",
+        )
+
     # Validate user exists
     user = db.query(User).filter(User.user_id == user_id).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with id {user_id} not found"
+            detail=f"User with id {user_id} not found",
         )
-    
-    sleep = db.query(SleepLog).filter(
-        SleepLog.user_id == user_id,
-        SleepLog.sleep_date == date
-    ).first()
+
+    sleep = (
+        db.query(SleepLog)
+        .filter(
+            SleepLog.user_id == user_id,
+            SleepLog.sleep_day == sleep_day,
+        )
+        .first()
+    )
 
     if not sleep:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No sleep data found for user {user_id} on {date}"
+            detail=f"No sleep data found for user {user_id} on {sleep_day}",
         )
 
     return {
         "user_id": sleep.user_id,
-        "sleep_date": sleep.sleep_date.isoformat(),
+        # sleep_day is stored as plain text (e.g., 'Mon'), return it directly
+        "sleep_date": sleep.sleep_day,
         "sleep_hours": sleep.sleep_hours,
         "deep_sleep_hours": sleep.deep_sleep_hours,
         "light_sleep_hours": sleep.light_sleep_hours,
         "rem_sleep_hours": sleep.rem_sleep_hours,
-        "awake_minutes": sleep.awake_minutes
+        "awake_minutes": sleep.awake_minutes,
     }
 
 @router.get("/summary", response_model=DashboardSummaryResponse)

@@ -1,5 +1,21 @@
-# app/models/models.py OR split into user.py and role.py
-from sqlalchemy import CheckConstraint, PrimaryKeyConstraint, Date, TIMESTAMP, Float, Column, Integer, String, Table, ForeignKey, Text, Boolean, Double, BigInteger, ForeignKey, DateTime, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    Column,
+    Date,
+    DateTime,
+    Double,
+    Float,
+    ForeignKey,
+    Integer,
+    PrimaryKeyConstraint,
+    String,
+    Text,
+    Time,
+    TIMESTAMP,
+    func,
+)
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -15,6 +31,8 @@ class User(Base):
     password = Column(String(60), nullable=False)
     phone_number = Column(String(20), nullable=False)
     location = Column(String(200), nullable=True)
+    age = Column(Integer, nullable=True)
+    pain_type = Column(String(200), nullable=True)
     is_active = Column(Boolean, default=False, nullable=False)
     verification_code = Column(String, nullable=True)
 
@@ -112,38 +130,6 @@ class DeviceConnection(Base):
     last_seen = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now())
 
-class ActivityDaily(Base):
-    __tablename__ = "activity_daily"
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"))
-
-    activity_date = Column(Date, nullable=False)
-    average_steps = Column(Integer, default=0)
-    most_active_day = Column(String(20))
-    total_distance_km = Column(Float, default=0)
-    calories_burned = Column(Integer, default=0)
-
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
-
-
-class ActivityWeekly(Base):
-    __tablename__ = "activity_weekly"
-
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"))
-
-    year = Column(Integer, nullable=False)
-    week = Column(Integer, nullable=False)
-
-    average_steps = Column(Integer)
-    total_distance_km = Column(Float)
-    calories_burned = Column(Integer)
-    most_active_day = Column(String(10))
-
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
-
-
 class WeeklyReport(Base):
     __tablename__ = "weekly_report"
 
@@ -197,7 +183,8 @@ class SleepLog(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"))
 
-    sleep_date = Column(Date, nullable=False)
+    # Database column is named 'sleep_day' and stores weekday text (e.g., 'Mon')
+    sleep_day = Column("sleep_day", String(10), nullable=False)
     sleep_hours = Column(Float)
     deep_sleep_hours = Column(Float)
     light_sleep_hours = Column(Float)
@@ -206,3 +193,37 @@ class SleepLog(Base):
     sleep_quality = Column(String(20))
 
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+class Medication(Base):
+    __tablename__ = "medications"
+
+    medication_id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"))
+    name = Column(String)
+    dosage = Column(String)
+    frequency = Column(String)
+
+    # Relationship to MedicationDose
+    doses = relationship("MedicationDose", back_populates="medication")
+
+class MedicationDose(Base):
+    __tablename__ = "medication_doses"
+
+    dose_id = Column(Integer, primary_key=True, index=True)
+    medication_id = Column(
+        Integer,
+        ForeignKey("medications.medication_id"),
+        nullable=False
+    )
+
+    scheduled_date = Column(Date, nullable=False)
+    scheduled_time = Column(Time, nullable=False)
+
+    status = Column(String(20), default="pending")
+    action_time = Column(DateTime)
+
+    medication = relationship(
+        "Medication",
+        back_populates="doses"
+    )
+
