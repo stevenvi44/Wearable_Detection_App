@@ -3,7 +3,12 @@ from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from fastapi import HTTPException
 from models.models import User, Role, PatientCaregiver, VitalSigns, DeviceConnection
-from schemas.schemas import UserCreate, UserUpdate, UserResponse, VitalSignsCreate, VitalSignsResponse
+from schemas.schemas import (
+    UserCreate, UserUpdate, UserResponse, 
+    VitalSignsCreate, VitalSignsResponse,
+    DeviceRegisterCreate, DeviceRegisterResponse,
+    VitalSignsBatchCreate, VitalSignsBatchItem
+)
 from utils import hash_password
 from datetime import datetime
 
@@ -185,3 +190,124 @@ def update_device_status(db, data, ip_address: str):
     db.commit()
     db.refresh(device)
     return device
+
+def register_device(db: Session, data: DeviceRegisterCreate, ip_address: str):
+    """Register/pair a new device to a user"""
+    # Check user exists
+    user = db.query(User).filter(User.user_id == data.user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User with id {data.user_id} does not exist"
+        )
+    
+    # Check if device_identifier already exists (another device with same ID)
+    existing_device = db.query(DeviceConnection).filter(
+        DeviceConnection.device_identifier == data.device_identifier
+    ).first()
+    
+    if existing_device:
+        # If same device_identifier but different user, update it
+        if existing_device.user_id != data.user_id:
+            existing_device.user_id = data.user_id
+            existing_device.device_name = data.device_name
+            existing_device.device_type = data.device_type
+            existing_device.status = "online"
+            existing_device.ip_address = ip_address
+            existing_device.last_seen = datetime.utcnow()
+            db.commit()
+            db.refresh(existing_device)
+            return existing_device
+        # If same device_identifier and same user, just update info
+        else:
+            existing_device.device_name = data.device_name
+            existing_device.device_type = data.device_type
+            existing_device.status = "online"
+            existing_device.ip_address = ip_address
+            existing_device.last_seen = datetime.utcnow()
+            db.commit()
+            db.refresh(existing_device)
+            return existing_device
+    
+    # Check if user already has a device (optional: you might want to allow multiple devices)
+    user_device = db.query(DeviceConnection).filter(
+        DeviceConnection.user_id == data.user_id
+    ).first()
+    
+    if user_device:
+        # Update existing device for this user
+        user_device.device_identifier = data.device_identifier
+        user_device.device_name = data.device_name
+        user_device.device_type = data.device_type
+        user_device.status = "online"
+        user_device.ip_address = ip_address
+        user_device.last_seen = datetime.utcnow()
+        db.commit()
+        db.refresh(user_device)
+        return user_device
+    
+    # Create new device
+    device = DeviceConnection(
+        user_id=data.user_id,
+        device_identifier=data.device_identifier,
+        device_name=data.device_name,
+        device_type=data.device_type,
+        status="online",
+        battery=None,  # Will be updated later
+        ip_address=ip_address,
+        last_seen=datetime.utcnow()
+    )
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+    return device
+
+def create_vital_signs_batch(db: Session, batch_data: VitalSignsBatchCreate):
+    """Create multiple vital signs records in a batch"""
+    # Check user exists
+    user = db.query(User).filter(User.user_id == batch_data.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    created_count = 0
+    failed_count = 0
+    failed_items = []
+    
+    for idx, vital_item in enumerate(batch_data.vitals):
+        try:
+            # Create vital sign record
+            vital_dict = vital_item.model_dump(exclude={'created_at'})
+            vital_dict['user_id'] = batch_data.user_id
+            
+            # Create VitalSigns object
+            vital = VitalSigns(**vital_dict)
+            
+            # If created_at is provided, set it explicitly (overrides server_default)
+            if vital_item.created_at:
+                vital.created_at = vital_item.created_at
+            
+            db.add(vital)
+            created_count += 1
+        except Exception as e:
+            failed_count += 1
+            failed_items.append({
+                "index": idx,
+                "error": str(e),
+                "data": vital_item.model_dump()
+            })
+    
+    # Commit all successful records
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save batch vitals: {str(e)}"
+        )
+    
+    return {
+        "created_count": created_count,
+        "failed_count": failed_count,
+        "failed_items": failed_items if failed_items else None
+    }

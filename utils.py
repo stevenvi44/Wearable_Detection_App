@@ -79,11 +79,16 @@ class ConnectionManager:
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
         for connection in self.active_connections:
-            await connection.send_json(message)
+            try:
+                await connection.send_json(message)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Error broadcasting to connection: {e}")
 
 # WebSocket Manager - for vital
 class ConnectionManagerVital:
@@ -117,3 +122,104 @@ class ConnectionManagerVital:
         # Remove disconnected connections
         for connection in disconnected:
             self.disconnect(connection)
+
+# Enhanced WebSocket Manager - for caregiver-specific routing
+class CaregiverConnectionManager:
+    """
+    Manages WebSocket connections for caregivers with patient-specific routing.
+    Tracks which caregivers are connected and which patients they're monitoring.
+    """
+    def __init__(self):
+        # Map: caregiver_id -> List[WebSocket]
+        self.caregiver_connections: dict[int, List[WebSocket]] = {}
+        # Map: websocket -> caregiver_id
+        self.connection_to_caregiver: dict[WebSocket, int] = {}
+
+    async def connect(self, websocket: WebSocket, caregiver_id: int):
+        """Connect a caregiver WebSocket and track their ID"""
+        await websocket.accept()
+        
+        if caregiver_id not in self.caregiver_connections:
+            self.caregiver_connections[caregiver_id] = []
+        
+        self.caregiver_connections[caregiver_id].append(websocket)
+        self.connection_to_caregiver[websocket] = caregiver_id
+        
+        import logging
+        logging.getLogger(__name__).info(f"Caregiver {caregiver_id} connected. Total caregivers: {len(self.caregiver_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        """Disconnect a caregiver WebSocket"""
+        if websocket not in self.connection_to_caregiver:
+            return
+        
+        caregiver_id = self.connection_to_caregiver[websocket]
+        
+        if caregiver_id in self.caregiver_connections:
+            if websocket in self.caregiver_connections[caregiver_id]:
+                self.caregiver_connections[caregiver_id].remove(websocket)
+            
+            # Remove empty caregiver entry
+            if not self.caregiver_connections[caregiver_id]:
+                del self.caregiver_connections[caregiver_id]
+        
+        del self.connection_to_caregiver[websocket]
+        
+        import logging
+        logging.getLogger(__name__).info(f"Caregiver {caregiver_id} disconnected")
+
+    async def broadcast_to_patient_caregivers(
+        self, 
+        patient_id: int, 
+        message: dict, 
+        db: Session,
+        connection_type: str = "vitals"
+    ):
+        """
+        Broadcast message to all caregivers assigned to a specific patient.
+        
+        Args:
+            patient_id: The patient whose data is being updated
+            message: The message to broadcast
+            db: Database session to query caregiver-patient relationships
+            connection_type: Type of connection ("vitals" or "location")
+        """
+        from models.models import PatientCaregiver
+        
+        # Find all caregivers assigned to this patient
+        caregiver_assignments = db.query(PatientCaregiver).filter(
+            PatientCaregiver.patient_id == patient_id
+        ).all()
+        
+        if not caregiver_assignments:
+            import logging
+            logging.getLogger(__name__).debug(f"No caregivers assigned to patient {patient_id}")
+            return
+        
+        caregiver_ids = [assignment.caregiver_id for assignment in caregiver_assignments]
+        
+        # Send message to all connected caregivers for this patient
+        disconnected = []
+        sent_count = 0
+        
+        for caregiver_id in caregiver_ids:
+            if caregiver_id in self.caregiver_connections:
+                for websocket in self.caregiver_connections[caregiver_id]:
+                    try:
+                        await websocket.send_json(message)
+                        sent_count += 1
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).error(
+                            f"Error sending {connection_type} to caregiver {caregiver_id}: {e}"
+                        )
+                        disconnected.append(websocket)
+        
+        # Clean up disconnected connections
+        for websocket in disconnected:
+            self.disconnect(websocket)
+        
+        import logging
+        logging.getLogger(__name__).info(
+            f"Broadcasted {connection_type} for patient {patient_id} to {sent_count} caregiver connection(s)"
+        )

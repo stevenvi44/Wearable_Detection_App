@@ -241,6 +241,31 @@ class PatientLocationResponse(BaseModel):
     longitude: float
     updated_at: str
 
+class PatientListItem(BaseModel):
+    patient_id: int
+    patient_name: str
+    patient_email: str
+    patient_phone: str
+    age: Optional[int] = None
+    
+    model_config = {
+        "from_attributes": True
+    }
+
+class CaregiverPatientsResponse(BaseModel):
+    caregiver_id: int
+    patients: List[PatientListItem]
+
+class PatientDashboardResponse(BaseModel):
+    patient_id: int
+    patient_name: str
+    # Vitals
+    latest_vitals: Optional[VitalSignsResponse] = None
+    # Device Connection
+    device_status: Optional[DeviceStatusResponse] = None
+    # Location
+    location: Optional[PatientLocationResponse] = None
+
 # Vital Schema
 class VitalSignsBase(BaseModel):
     heart_rate: Optional[int] = None
@@ -296,6 +321,45 @@ class DeviceStatusResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+class DeviceRegisterCreate(BaseModel):
+    user_id: int
+    device_identifier: str = Field(..., description="Unique device identifier (MAC address or serial number)")
+    device_name: Optional[str] = Field(None, description="Device name, e.g., 'Apple Watch Series 9'")
+    device_type: Optional[str] = Field(None, description="Device type, e.g., 'smartwatch'")
+
+class DeviceRegisterResponse(BaseModel):
+    device_id: int
+    user_id: int
+    device_identifier: str
+    device_name: Optional[str] = None
+    device_type: Optional[str] = None
+    status: str
+    battery: Optional[int] = None
+    paired_at: datetime
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class VitalSignsBatchItem(BaseModel):
+    heart_rate: Optional[int] = None
+    blood_pressure_systolic: Optional[int] = None
+    blood_pressure_diastolic: Optional[int] = None
+    spo2: Optional[int] = None
+    temperature: Optional[float] = None
+    breathing_rate: Optional[int] = None
+    created_at: Optional[datetime] = None  # Optional timestamp for historical data
+
+class VitalSignsBatchCreate(BaseModel):
+    user_id: int
+    vitals: List[VitalSignsBatchItem] = Field(..., min_length=1, description="List of vital signs to upload")
+
+class VitalSignsBatchResponse(BaseModel):
+    message: str
+    created_count: int
+    failed_count: int
+    failed_items: Optional[List[dict]] = None
 
 class CaregiverContactResponse(BaseModel):
     caregiver_id: int

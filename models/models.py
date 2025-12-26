@@ -124,6 +124,9 @@ class DeviceConnection(Base):
 
     device_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"))
+    device_identifier = Column(String, nullable=True, unique=True)  # MAC address or serial number
+    device_name = Column(String, nullable=True)  # e.g., "Apple Watch Series 9"
+    device_type = Column(String, nullable=True)  # e.g., "smartwatch"
     status = Column(String, nullable=False)
     battery = Column(Integer)
     ip_address = Column(String)
