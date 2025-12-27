@@ -268,26 +268,29 @@ class PatientDashboardResponse(BaseModel):
 
 # Vital Schema
 class VitalSignsBase(BaseModel):
-    heart_rate: Optional[int] = None
-    blood_pressure_systolic: Optional[int] = None
-    blood_pressure_diastolic: Optional[int] = None
+    hr: Optional[int] = None
     spo2: Optional[int] = None
-    temperature: Optional[float] = None
-    breathing_rate: Optional[int] = None
+    temp: Optional[float] = None
+    stress: Optional[str] = None
 
 class VitalSignsCreate(VitalSignsBase):
     user_id: int
 
+class MLPredictionResponse(BaseModel):
+    emergency_status: Optional[str] = None  # "safe_now", "warning_soon", "critical"
+    confidence: Optional[float] = None
+    status: Optional[str] = None  # "waiting_for_more_data", "insufficient_data", "error"
+    message: Optional[str] = None
+
 class VitalSignsResponse(BaseModel):
     vital_id: int
     user_id: int
-    heart_rate: int | None = None
-    blood_pressure_systolic: int | None = None
-    blood_pressure_diastolic: int | None = None
+    hr: int | None = None
     spo2: int | None = None
-    temperature: float | None = None
-    breathing_rate: int | None = None
+    temp: float | None = None
+    stress: str | None = None
     created_at: datetime
+    ml_prediction: Optional[MLPredictionResponse] = None  # ML prediction if available
 
     model_config = {
         "from_attributes": True
@@ -343,12 +346,10 @@ class DeviceRegisterResponse(BaseModel):
     }
 
 class VitalSignsBatchItem(BaseModel):
-    heart_rate: Optional[int] = None
-    blood_pressure_systolic: Optional[int] = None
-    blood_pressure_diastolic: Optional[int] = None
+    hr: Optional[int] = None
     spo2: Optional[int] = None
-    temperature: Optional[float] = None
-    breathing_rate: Optional[int] = None
+    temp: Optional[float] = None
+    stress: Optional[str] = None
     created_at: Optional[datetime] = None  # Optional timestamp for historical data
 
 class VitalSignsBatchCreate(BaseModel):

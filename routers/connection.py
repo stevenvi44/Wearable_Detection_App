@@ -12,8 +12,7 @@ from schemas.schemas import (
     DeviceRegisterResponse,
     CaregiverPatientsResponse,
     PatientListItem,
-    PatientDashboardResponse,
-    VitalSignsResponse,
+    PatientDashboardResponse
 )
 import crud.crud as crud
 

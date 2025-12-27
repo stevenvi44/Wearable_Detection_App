@@ -107,12 +107,10 @@ class VitalSigns(Base):
     vital_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
 
-    heart_rate = Column(Integer, nullable=True)
-    blood_pressure_systolic = Column(Integer, nullable=True)
-    blood_pressure_diastolic = Column(Integer, nullable=True)
+    hr = Column(Integer, nullable=True)
     spo2 = Column(Integer, nullable=True)
-    temperature = Column(Float, nullable=True)
-    breathing_rate = Column(Integer, nullable=True)
+    temp = Column(Float, nullable=True)
+    stress = Column(String, nullable=True)
 
     created_at = Column(TIMESTAMP, server_default=func.now())
 

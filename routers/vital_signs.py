@@ -7,9 +7,11 @@ from schemas.schemas import (
     VitalSignsCreate, 
     VitalSignsResponse,
     VitalSignsBatchCreate,
-    VitalSignsBatchResponse
+    VitalSignsBatchResponse,
+    MLPredictionResponse
 )
 from utils import API_KEY, API_KEY_NAME
+from ml_service import predict_emergency_status
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,9 +34,28 @@ async def update_vital_signs(
     api_key: str = Depends(get_api_key),
 ):
     vital = crud_vitals.create_vital_sign(db, vital_data)
-    # Convert to response model and then to dict for broadcasting
+    
+    # Get ML prediction
+    ml_prediction = None
+    try:
+        prediction_result = predict_emergency_status(
+            user_id=vital_data.user_id,
+            hr=vital_data.hr,
+            spo2=vital_data.spo2,
+            temp=vital_data.temp,
+            stress=vital_data.stress
+        )
+        ml_prediction = MLPredictionResponse(**prediction_result)
+        logger.info(f"ML prediction for user {vital_data.user_id}: {prediction_result}")
+    except Exception as e:
+        logger.error(f"Error getting ML prediction: {e}")
+        # Continue without prediction if ML fails
+    
+    # Convert to response model
     vital_response = VitalSignsResponse.model_validate(vital)
-    vital_dict = vital_response.model_dump(mode='json')
+    # Add ML prediction (not in database model)
+    vital_response.ml_prediction = ml_prediction
+    vital_dict = vital_response.model_dump(mode='json', exclude_none=True)
     
     # Log for debugging
     logger.info(f"Broadcasting vital sign update for patient {vital_data.user_id}")
@@ -70,6 +91,43 @@ def get_history(user_id: int, db: Session = Depends(get_db), api_key: str = Depe
         raise HTTPException(status_code=404, detail=f"User {user_id} not found")
     
     return history
+
+@router.get("/prediction/{user_id}", response_model=MLPredictionResponse)
+def get_ml_prediction(
+    user_id: int,
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
+):
+    """
+    Get ML prediction for a user based on their latest vital signs.
+    
+    This endpoint uses the latest vital signs from the database to generate
+    a prediction. Useful for getting predictions on-demand or for historical data.
+    """
+    # Get latest vital signs
+    latest_vital = crud_vitals.get_latest_vital(db, user_id)
+    if not latest_vital:
+        raise HTTPException(
+            status_code=404,
+            detail="No vital signs found for this user. Cannot generate prediction."
+        )
+    
+    # Get prediction
+    try:
+        prediction_result = predict_emergency_status(
+            user_id=user_id,
+            hr=latest_vital.hr,
+            spo2=latest_vital.spo2,
+            temp=latest_vital.temp,
+            stress=latest_vital.stress
+        )
+        return MLPredictionResponse(**prediction_result)
+    except Exception as e:
+        logger.error(f"Error getting ML prediction for user {user_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating ML prediction: {str(e)}"
+        )
 
 @router.post("/batch", response_model=VitalSignsBatchResponse, status_code=201)
 async def batch_upload_vital_signs(

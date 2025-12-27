@@ -3,6 +3,7 @@ from fastapi import BackgroundTasks, HTTPException, WebSocket, Security
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from fastapi.security.api_key import APIKeyHeader
 from typing import List
+from sqlalchemy.orm import Session
 import os
 from dotenv import load_dotenv
 from starlette.status import HTTP_403_FORBIDDEN
@@ -193,10 +194,15 @@ class CaregiverConnectionManager:
         
         if not caregiver_assignments:
             import logging
-            logging.getLogger(__name__).debug(f"No caregivers assigned to patient {patient_id}")
+            logging.getLogger(__name__).info(f"No caregivers assigned to patient {patient_id}")
             return
         
         caregiver_ids = [assignment.caregiver_id for assignment in caregiver_assignments]
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Patient {patient_id} has {len(caregiver_ids)} assigned caregiver(s): {caregiver_ids}")
+        logger.info(f"Currently connected caregivers: {list(self.caregiver_connections.keys())}")
         
         # Send message to all connected caregivers for this patient
         disconnected = []
@@ -204,16 +210,18 @@ class CaregiverConnectionManager:
         
         for caregiver_id in caregiver_ids:
             if caregiver_id in self.caregiver_connections:
+                logger.info(f"Caregiver {caregiver_id} is connected, sending {connection_type} update")
                 for websocket in self.caregiver_connections[caregiver_id]:
                     try:
                         await websocket.send_json(message)
                         sent_count += 1
                     except Exception as e:
-                        import logging
-                        logging.getLogger(__name__).error(
+                        logger.error(
                             f"Error sending {connection_type} to caregiver {caregiver_id}: {e}"
                         )
                         disconnected.append(websocket)
+            else:
+                logger.info(f"Caregiver {caregiver_id} is assigned but not connected")
         
         # Clean up disconnected connections
         for websocket in disconnected:
