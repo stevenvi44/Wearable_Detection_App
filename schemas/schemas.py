@@ -495,3 +495,17 @@ class MedicationResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class FallDetectionCreate(BaseModel):
+    user_id: int
+    alert_type: str
+
+class FallDetectionResponse(BaseModel):
+    fall_id: int
+    user_id: int
+    alert_type: str
+    created_at: datetime
+
+    model_config = {
+        "from_attributes": True
+    }

@@ -117,6 +117,28 @@ class VitalSigns(Base):
     # Relationship back to User
     user = relationship("User", back_populates="vital_signs")
 
+class MLPrediction(Base):
+    __tablename__ = "ml_predictions"
+
+    prediction_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    
+    emergency_status = Column(String, nullable=True)  # "safe_now", "warning_soon", "critical"
+    confidence = Column(Float, nullable=True)
+    status = Column(String, nullable=True)  # "waiting_for_more_data", "insufficient_data", "error"
+    message = Column(String, nullable=True)
+    
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+class FallDetection(Base):
+    __tablename__ = "fall_detections"
+
+    fall_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    alert_type = Column(String, nullable=False)
+    
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
 class DeviceConnection(Base):
     __tablename__ = "device_connections"
 

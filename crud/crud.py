@@ -2,12 +2,13 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from fastapi import HTTPException
-from models.models import User, Role, PatientCaregiver, VitalSigns, DeviceConnection
+from models.models import User, Role, PatientCaregiver, VitalSigns, DeviceConnection, MLPrediction, FallDetection
 from schemas.schemas import (
     UserCreate, UserUpdate, UserResponse, 
     VitalSignsCreate, VitalSignsResponse,
     DeviceRegisterCreate, DeviceRegisterResponse,
-    VitalSignsBatchCreate, VitalSignsBatchItem
+    VitalSignsBatchCreate, VitalSignsBatchItem,
+    FallDetectionCreate, FallDetectionResponse
 )
 from utils import hash_password
 from datetime import datetime
@@ -311,3 +312,103 @@ def create_vital_signs_batch(db: Session, batch_data: VitalSignsBatchCreate):
         "failed_count": failed_count,
         "failed_items": failed_items if failed_items else None
     }
+
+# ------------------ ML Prediction ------------------ #
+def store_ml_prediction(db: Session, user_id: int, prediction_data: dict):
+    """
+    Store an ML prediction in the database.
+    Only stores predictions that have an emergency_status (not waiting_for_more_data).
+    """
+    # Only store if we have a valid prediction (emergency_status exists)
+    if "emergency_status" in prediction_data and prediction_data.get("emergency_status"):
+        prediction = MLPrediction(
+            user_id=user_id,
+            emergency_status=prediction_data.get("emergency_status"),
+            confidence=prediction_data.get("confidence"),
+            status=prediction_data.get("status"),
+            message=prediction_data.get("message")
+        )
+        db.add(prediction)
+        db.commit()
+        db.refresh(prediction)
+        return prediction
+    return None
+
+def get_first_ml_prediction(db: Session, user_id: int):
+    """
+    Get the first stored ML prediction for a user (ordered by created_at ASC).
+    Returns None if no prediction exists.
+    """
+    prediction = (
+        db.query(MLPrediction)
+        .filter(MLPrediction.user_id == user_id)
+        .filter(MLPrediction.emergency_status.isnot(None))  # Only get valid predictions
+        .order_by(MLPrediction.created_at.asc())
+        .first()
+    )
+    
+    if not prediction:
+        return None
+    
+    return {
+        "emergency_status": prediction.emergency_status,
+        "confidence": prediction.confidence,
+        "status": prediction.status,
+        "message": prediction.message
+    }
+
+def get_latest_ml_prediction(db: Session, user_id: int):
+    """
+    Get the latest stored ML prediction for a user (ordered by created_at DESC).
+    Returns None if no prediction exists.
+    """
+    prediction = (
+        db.query(MLPrediction)
+        .filter(MLPrediction.user_id == user_id)
+        .filter(MLPrediction.emergency_status.isnot(None))  # Only get valid predictions
+        .order_by(MLPrediction.created_at.desc())
+        .first()
+    )
+    
+    if not prediction:
+        return None
+    
+    return {
+        "emergency_status": prediction.emergency_status,
+        "confidence": prediction.confidence,
+        "status": prediction.status,
+        "message": prediction.message
+    }
+
+# ------------------ Fall Detection ------------------ #
+def create_fall_detection(db: Session, fall_data: FallDetectionCreate):
+    """Create a new fall detection alert"""
+    # Check if user exists
+    user = db.query(User).filter(User.user_id == fall_data.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Create fall detection record
+    fall_detection = FallDetection(
+        user_id=fall_data.user_id,
+        alert_type=fall_data.alert_type
+    )
+    db.add(fall_detection)
+    db.commit()
+    db.refresh(fall_detection)
+    
+    return fall_detection
+
+def get_fall_detection(db: Session, user_id: int):
+    """Get the latest fall detection alert for a user"""
+    fall_detection = (
+        db.query(FallDetection)
+        .filter(FallDetection.user_id == user_id)
+        .order_by(FallDetection.created_at.desc())
+        .first()
+    )
+    
+    if not fall_detection:
+        return None
+    
+    return FallDetectionResponse.model_validate(fall_detection)

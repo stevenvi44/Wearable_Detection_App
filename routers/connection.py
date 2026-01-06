@@ -48,30 +48,40 @@ def get_device_status(patient_id: int, db: Session = Depends(get_db)):
 
     return DeviceStatusResponse(status=device.status, battery=device.battery or 0)
 
-@router.get("/caregiver/contact/{patient_id}", response_model=CaregiverContactResponse)
+@router.get("/caregiver/contact/{patient_id}", response_model=list[CaregiverContactResponse])
 def get_caregiver_contact(patient_id: int, db: Session = Depends(get_db)):
-    # 1. Find caregiver assigned to patient
-    connection = db.query(PatientCaregiver).filter(
+    """
+    Get all caregivers assigned to a patient.
+    
+    Returns a list of all caregivers with their contact information.
+    If no caregivers are assigned, returns an empty list.
+    """
+    # 1. Find all caregivers assigned to patient
+    connections = db.query(PatientCaregiver).filter(
         PatientCaregiver.patient_id == patient_id
-    ).first()
+    ).all()
 
-    if not connection:
-        raise HTTPException(status_code=404, detail="No caregiver assigned to this patient")
+    if not connections:
+        return []  # Return empty list if no caregivers assigned
 
-    # 2. Get caregiver user record
-    caregiver = db.query(User).filter(
-        User.user_id == connection.caregiver_id
-    ).first()
+    # 2. Get all caregiver user records
+    caregiver_ids = [conn.caregiver_id for conn in connections]
+    caregivers = db.query(User).filter(
+        User.user_id.in_(caregiver_ids)
+    ).all()
 
-    if not caregiver:
-        raise HTTPException(status_code=404, detail="Caregiver user not found")
+    if not caregivers:
+        return []  # Return empty list if caregivers not found
 
-    # 3. Return caregiver contact details
-    return CaregiverContactResponse(
-        caregiver_id=caregiver.user_id,
-        caregiver_name=caregiver.name,
-        phone_number=caregiver.phone_number,
-    )
+    # 3. Return list of caregiver contact details
+    return [
+        CaregiverContactResponse(
+            caregiver_id=caregiver.user_id,
+            caregiver_name=caregiver.name,
+            phone_number=caregiver.phone_number,
+        )
+        for caregiver in caregivers
+    ]
 
 @router.post("/register", response_model=DeviceRegisterResponse, status_code=201)
 def register_device_endpoint(

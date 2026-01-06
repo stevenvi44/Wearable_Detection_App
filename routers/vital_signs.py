@@ -47,6 +47,15 @@ async def update_vital_signs(
         )
         ml_prediction = MLPredictionResponse(**prediction_result)
         logger.info(f"ML prediction for user {vital_data.user_id}: {prediction_result}")
+        
+        # Store prediction in database if it's a valid prediction (has emergency_status)
+        if prediction_result.get("emergency_status"):
+            try:
+                crud_vitals.store_ml_prediction(db, vital_data.user_id, prediction_result)
+                logger.info(f"Stored ML prediction for user {vital_data.user_id}")
+            except Exception as e:
+                logger.error(f"Error storing ML prediction: {e}")
+                # Continue even if storage fails
     except Exception as e:
         logger.error(f"Error getting ML prediction: {e}")
         # Continue without prediction if ML fails
@@ -99,35 +108,20 @@ def get_ml_prediction(
     api_key: str = Depends(get_api_key)
 ):
     """
-    Get ML prediction for a user based on their latest vital signs.
+    Get the latest stored ML prediction for a user.
     
-    This endpoint uses the latest vital signs from the database to generate
-    a prediction. Useful for getting predictions on-demand or for historical data.
+    Returns the most recent prediction that was stored. If no prediction has been 
+    stored yet, returns "waiting".
     """
-    # Get latest vital signs
-    latest_vital = crud_vitals.get_latest_vital(db, user_id)
-    if not latest_vital:
-        raise HTTPException(
-            status_code=404,
-            detail="No vital signs found for this user. Cannot generate prediction."
-        )
+    # Get latest stored prediction
+    stored_prediction = crud_vitals.get_latest_ml_prediction(db, user_id)
     
-    # Get prediction
-    try:
-        prediction_result = predict_emergency_status(
-            user_id=user_id,
-            hr=latest_vital.hr,
-            spo2=latest_vital.spo2,
-            temp=latest_vital.temp,
-            stress=latest_vital.stress
-        )
-        return MLPredictionResponse(**prediction_result)
-    except Exception as e:
-        logger.error(f"Error getting ML prediction for user {user_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error generating ML prediction: {str(e)}"
-        )
+    if not stored_prediction:
+        # No prediction stored yet, return waiting
+        return MLPredictionResponse(status="waiting")
+    
+    # Return the stored prediction
+    return MLPredictionResponse(**stored_prediction)
 
 @router.post("/batch", response_model=VitalSignsBatchResponse, status_code=201)
 async def batch_upload_vital_signs(

@@ -9,7 +9,8 @@ from routers import (
     vital_signs,
     connection,
     activity,
-    medications
+    medications,
+    fall_detection
 )
 
 # Initialize FastAPI app
@@ -26,8 +27,8 @@ app.include_router(vital_signs.router)
 app.include_router(connection.router)
 app.include_router(activity.router)
 app.include_router(medications.router)
+app.include_router(fall_detection.router)
 app.include_router(users.router)
-
 
 @app.get("/")
 def read_root():
